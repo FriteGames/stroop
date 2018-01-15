@@ -1,0 +1,5 @@
+call game loop
+update world
+draw world
+schedule game loop to be called again after the next rendering
+browser does real render
