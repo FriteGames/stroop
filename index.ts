@@ -1,6 +1,16 @@
 import * as Mousetrap from 'mousetrap';
 import * as _ from 'lodash';
 
+const TILE_ID_MAP = {
+	0: 'white',
+	1: 'blue',
+	2: 'green',
+	3: 'red',
+	4: 'gray',
+	5: 'white', // player renders separately. dont worry, he is black
+	6: 'orange',
+};
+
 type Player = { position: Position; width; height; color };
 type Tile = { col: number; row: number; color: string };
 type Position = { row: number; col: number };
@@ -8,15 +18,16 @@ type Level = {
 	tiles: Array<Tile>;
 	height: number;
 	width: number;
+	tileWidth: number;
 	playerPosition: { row: number; col: number };
 };
 
 let canvas;
 let ctx;
-let level;
-const SCREEN_HEIGHT = 703; // TODO fix this
-const SCREEN_WIDTH = 1280;
-const BLOCK_SIZE = 32;
+let level = loadLevel()
+const BLOCK_SIZE = level.tileWidth;
+const SCREEN_WIDTH = level.width * BLOCK_SIZE
+const SCREEN_HEIGHT = level.height * BLOCK_SIZE
 
 function l(...args) {
 	console.log(...args);
@@ -31,7 +42,6 @@ function init() {
 	canvas = document.getElementById('stroop') as HTMLCanvasElement;
 	ctx = canvas.getContext('2d');
 	resizeCanvas();
-	level = loadLevel();
 	player.position = level.playerPosition;
 	requestAnimationFrame(gameLoop);
 }
@@ -135,22 +145,13 @@ function gameLoop(timestamp) {
 	lastTime = timestamp;
 }
 
-const TILE_ID_MAP = {
-	0: 'white',
-	1: 'blue',
-	2: 'green',
-	3: 'red',
-	4: 'gray',
-	5: 'white', // player renders separately. dont worry, he is black
-	6: 'orange',
-};
-
 function loadLevel(): Level {
 	const levelJson = require('./level1.json');
 	const properties = levelJson.properties;
 	const rawData = levelJson.layers[0].data;
 	const width: number = levelJson.width;
 	const height: number = levelJson.height;
+	const tileWidth: number = levelJson.tilewidth;
 	const playerPosition = {
 		col: properties.startPositionCol,
 		row: properties.startPositionRow,
@@ -160,9 +161,8 @@ function loadLevel(): Level {
 		const col = index % width;
 		const row = Math.floor(index / width);
 		const color = TILE_ID_MAP[tileId];
-
 		return { col, row, color };
 	});
 
-	return { width, height, tiles, playerPosition };
+	return { width, height, tiles, playerPosition, tileWidth };
 }
