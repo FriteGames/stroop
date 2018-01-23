@@ -4,8 +4,9 @@ import * as _ from 'lodash';
 let canvas;
 let ctx;
 let tiles;
-const SCREEN_HEIGHT = 720;
-const SCREEN_WIDTH = 1080;
+let level;
+const SCREEN_HEIGHT = 703; // TODO fix this
+const SCREEN_WIDTH = 1280;
 const BLOCK_SIZE = 32;
 
 function l(...args) {
@@ -21,10 +22,9 @@ function init() {
   canvas = document.getElementById('stroop') as HTMLCanvasElement;
   ctx = canvas.getContext('2d');
   resizeCanvas();
-  let level = loadLevel()
+  level = loadLevel()
   tiles = level.tiles
-  player.x = level.playerPosition.col * BLOCK_SIZE
-  player.y = level.playerPosition.row * BLOCK_SIZE
+  player.position = level.playerPosition
   requestAnimationFrame(gameLoop);
 }
 
@@ -40,20 +40,29 @@ function drawTiles(tiles) {
 }
 
 function drawPlayer(player: Player) {
-  let y = SCREEN_HEIGHT - player.height;
   drawRect(
-    player.x,
-    y,
+    player.position.col * BLOCK_SIZE,
+    player.position.row * BLOCK_SIZE,
     player.width,
     player.height,
     player.color,
   );
 }
 
-type Player = { x; y; width; height; color };
+type Player = { position: Position; width; height; color };
 
-let player = { x: 0, y: 0, width: 32, height: 64, color: 'black', vx: 0 };
-let PLAYER_SPEED = BLOCK_SIZE * 15;
+let player = { position: { row: 0, col: 0 }, width: 32, height: 64, color: 'black', vx: 0 };
+let PLAYER_SPEED = 15;
+
+
+function canMove(tile: Tile) {
+  return tile.color === "white" ? true : false
+}
+
+function getTile(row, col) {
+  return tiles[Math.floor(row * level.width + col)]
+}
+
 
 const pressedKeys = new Set();
 Mousetrap.bind('right', () => pressedKeys.add('right'), 'keydown');
@@ -79,7 +88,23 @@ function gameLoop(timestamp) {
   } else {
     player.vx = 0;
   }
-  player.x += dt / 1000 * player.vx * PLAYER_SPEED;
+
+
+  if (player.vx === 1 && canMove(getTile(player.position.row, Math.floor(player.position.col + player.vx)))) {
+    player.position.col += dt / 1000 * player.vx * PLAYER_SPEED;
+  }
+
+  if (player.vx === -1 && canMove(getTile(player.position.row, Math.ceil(player.position.col + player.vx)))) {
+    player.position.col += dt / 1000 * player.vx * PLAYER_SPEED;
+  }
+
+  if (!canMove(getTile(player.position.row, Math.ceil(player.position.col)))) {
+    player.position.col = Math.floor(player.position.col)
+  }
+  if (!canMove(getTile(player.position.row, Math.floor(player.position.col)))) {
+    player.position.col = Math.ceil(player.position.col)
+  }
+
 
   // draw stuff
   ctx.clearRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
@@ -106,6 +131,11 @@ type Tile = {
   row: number;
   color: string;
 };
+
+type Position = {
+  row: number;
+  col: number;
+}
 
 type Level = {
   tiles: Array<Tile>;
