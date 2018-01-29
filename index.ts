@@ -17,7 +17,7 @@ type Level = {
 type State = {
 	player: Player;
 	selectedLevel: Level;
-	pressedKeys: Set<string>;
+	pressedKeys: { [key: string]: boolean };
 	colorblind: 'red' | 'green' | 'blue' | null;
 };
 type LoadLevelAction = {
@@ -40,12 +40,12 @@ type Action = LoadLevelAction | TimestepAction | KeyboardAction;
 /* ********* */
 const LEVELS = loadLevels();
 const BLOCK_SIZE = LEVELS[0].tileWidth;
-const SCREEN_HEIGHT = LEVELS[0].width * BLOCK_SIZE; // TODO fix this
-const SCREEN_WIDTH = LEVELS[0].height * BLOCK_SIZE;
+const SCREEN_HEIGHT = LEVELS[0].height * BLOCK_SIZE; // TODO fix this
+const SCREEN_WIDTH = LEVELS[0].width * BLOCK_SIZE;
 const initialState: State = {
 	player: { position: { row: 0, col: 0 }, width: 32, height: 64, color: 'black', vx: 0 },
 	selectedLevel: null,
-	pressedKeys: new Set(),
+	pressedKeys: {},
 	colorblind: null,
 };
 
@@ -66,83 +66,78 @@ function createCanvas({ height, width }) {
 function dispatch(action) {
 	state = reducer(state, action);
 }
+
+function getState(): State {
+	return state;
+}
+
 function reducer(state: State = initialState, action: Action): State {
 	return {
 		...state,
-		selectedLevel: selectedLevelReducer(state, action),
-		player: playerReducer(state, action),
-		colorblind: colorblindReducer(state, action),
-		pressedKeys: pressedKeysReducer(state, action),
+		selectedLevel: selectedLevelReducer(state.selectedLevel, action),
+		player: playerReducer(state.player, action),
+		colorblind: colorblindReducer(state.colorblind, action),
+		pressedKeys: pressedKeysReducer(state.pressedKeys, action),
 	};
 }
 
 function selectedLevelReducer(state, action) {
 	if (action.type === 'LOAD_LEVEL') {
-		state.selectedLevel = LEVELS[action.level];
+		return LEVELS[action.level];
 	}
-	return state.selectedLevel;
+	return state;
 }
-function playerReducer(state, action) {
-	const { player, pressedKeys } = state;
 
+function playerReducer(state: Player, action) {
 	if (action.type === 'LOAD_LEVEL') {
-		console.error(LEVELS, action.level);
-		player.position = LEVELS[action.level].playerPosition;
+		return { ...state, position: LEVELS[action.level].playerPosition };
 	} else if (action.type === 'TIMESTEP') {
+		const pressedKeys = getState().pressedKeys;
 		const dt = action.ts;
 
-		if (pressedKeys.has('right') && !pressedKeys.has('left')) {
-			player.vx = 1;
-		} else if (pressedKeys.has('left') && !pressedKeys.has('right')) {
-			player.vx = -1;
-		} else {
-			player.vx = 0;
+		let vx = 0;
+		if (pressedKeys.right && !pressedKeys.left) {
+			vx = 1;
+		} else if (pressedKeys.left && !pressedKeys.right) {
+			vx = -1;
 		}
 
-		if (
-			player.vx === 1 &&
-			canMove(getTile(player.position.row, Math.floor(player.position.col + player.vx)))
-		) {
-			player.position.col += dt / 1000 * player.vx * PLAYER_SPEED;
+		const roundNext = vx > 0 ? Math.ceil : Math.floor; // round in the direction character is moving
+		const roundPrev = vx > 0 ? Math.floor : Math.ceil;
+		const nextTile = getTile(state.position.row, roundNext(state.position.col));
+		const dx = canMove(nextTile) ? dt / 1000 * vx * PLAYER_SPEED : 0;
+
+		let col = state.position.col + dx;
+		// round down or up if cannot move to neighboring tile
+		if (!canMove(getTile(state.position.row, roundNext(col)))) {
+			col = roundPrev(col);
 		}
 
-		if (
-			player.vx === -1 &&
-			canMove(getTile(player.position.row, Math.ceil(player.position.col + player.vx)))
-		) {
-			player.position.col += dt / 1000 * player.vx * PLAYER_SPEED;
-		}
-
-		if (!canMove(getTile(player.position.row, Math.ceil(player.position.col)))) {
-			player.position.col = Math.floor(player.position.col);
-		}
-		if (!canMove(getTile(player.position.row, Math.floor(player.position.col)))) {
-			player.position.col = Math.ceil(player.position.col);
-		}
+		const position = { col, row: state.position.row };
+		return { ...state, vx, position };
 	}
-	return player;
+	return state;
 }
 
 function pressedKeysReducer(state, action) {
 	if (action.type !== 'KEYBOARD') {
-		return state.pressedKeys;
+		return state;
 	}
 
 	if (action.direction === 'down') {
-		state.pressedKeys.add(action.key);
+		return { ...state, [action.key]: true };
 	} else if (action.direction === 'up') {
-		state.pressedKeys.delete(action.key);
+		return _.without(state, action.key);
 	}
-	return state.pressedKeys;
 }
 
 const keyToColor = { '1': 'red', '2': 'green', '3': 'blue' };
 function colorblindReducer(state, action) {
 	if (action.type === 'KEYBOARD' && action.key in keyToColor) {
 		const color = keyToColor[action.key];
-		return color === state.colorblind ? null : color;
+		return color === state ? null : color;
 	}
-	return state.colorblind;
+	return state;
 }
 
 function l(...args) {
