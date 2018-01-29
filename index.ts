@@ -127,13 +127,13 @@ function pressedKeysReducer(state, action) {
 	if (action.direction === 'down') {
 		return { ...state, [action.key]: true };
 	} else if (action.direction === 'up') {
-		return _.without(state, action.key);
+		return _.omit(state, action.key);
 	}
 }
 
 const keyToColor = { '1': 'red', '2': 'green', '3': 'blue' };
 function colorblindReducer(state, action) {
-	if (action.type === 'KEYBOARD' && action.key in keyToColor) {
+	if (action.type === 'KEYBOARD' && action.key in keyToColor && action.direction === 'down') {
 		const color = keyToColor[action.key];
 		return color === state ? null : color;
 	}
@@ -163,13 +163,10 @@ function init() {
 	function createKeyboardAction(key, direction): KeyboardAction {
 		return { type: 'KEYBOARD', key, direction };
 	}
-	['right', 'left', 'up', 'down'].forEach(key => {
+	['right', 'left', 'up', 'down', '1', '2', '3'].forEach(key => {
 		Mousetrap.bind(key, () => dispatch(createKeyboardAction(key, 'down')), 'keydown');
 		Mousetrap.bind(key, () => dispatch(createKeyboardAction(key, 'up')), 'keyup');
 	});
-	Mousetrap.bind('1', () => dispatch(createKeyboardAction('1', 'down')));
-	Mousetrap.bind('2', () => dispatch(createKeyboardAction('2', 'down')));
-	Mousetrap.bind('3', () => dispatch(createKeyboardAction('3', 'down')));
 
 	dispatch({ type: 'LOAD_LEVEL', level: 0 });
 	document.body.appendChild(canvas);
