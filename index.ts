@@ -1,46 +1,46 @@
-import * as Mousetrap from "mousetrap";
-import * as _ from "lodash";
+import * as Mousetrap from 'mousetrap';
+import * as _ from 'lodash';
 
 /* ***** */
 /* types */
 /* ***** */
 type Player = {
-  position: Position;
-  width;
-  height;
-  color;
-  vx;
-  jumping: null | {
-    remainingBlocks: number;
-  };
+	position: Position;
+	width;
+	height;
+	color;
+	vx;
+	jumping: null | {
+		remainingBlocks: number;
+	};
 };
 type Tile = { col: number; row: number; color: string };
 type Position = { row: number; col: number };
 type Level = {
-  tiles: Array<Tile>;
-  height: number;
-  width: number;
-  tileWidth: number;
-  playerPosition: { row: number; col: number };
+	tiles: Array<Tile>;
+	height: number;
+	width: number;
+	tileWidth: number;
+	playerPosition: { row: number; col: number };
 };
 type State = {
-  player: Player;
-  selectedLevel: Level;
-  pressedKeys: { [key: string]: boolean };
-  colorblind: "red" | "green" | "blue" | null;
+	player: Player;
+	selectedLevel: Level;
+	pressedKeys: { [key: string]: boolean };
+	colorblind: 'red' | 'green' | 'blue' | null;
 };
 type LoadLevelAction = {
-  type: "LOAD_LEVEL";
-  level: number;
+	type: 'LOAD_LEVEL';
+	level: number;
 };
 type TimestepAction = {
-  type: "TIMESTEP";
-  ts: number;
+	type: 'TIMESTEP';
+	ts: number;
 };
 type KeyboardAction = {
-  type: "KEYBOARD";
-  key: "left" | "right" | "up" | "down" | "1" | "2" | "3";
-  direction: "up" | "down";
+	type: 'KEYBOARD';
+	key: 'left' | 'right' | 'up' | 'down' | '1' | '2' | '3';
+	direction: 'up' | 'down';
 };
 type Action = LoadLevelAction | TimestepAction | KeyboardAction;
 
@@ -54,16 +54,16 @@ const SCREEN_WIDTH = LEVELS[0].width * BLOCK_SIZE;
 const PLAYER_SPEED = 15;
 
 const initialState: State = {
-  player: {
-    position: { row: 0, col: 0 },
-    width: 32,
-    height: 64,
-    color: "black",
-    vx: 0
-  },
-  selectedLevel: null,
-  pressedKeys: {},
-  colorblind: null
+	player: {
+		position: { row: 0, col: 0 },
+		width: 32,
+		height: 64,
+		color: 'black',
+		vx: 0,
+	},
+	selectedLevel: null,
+	pressedKeys: {},
+	colorblind: null,
 };
 
 let state: State = initialState;
@@ -73,264 +73,247 @@ let state: State = initialState;
 /* ******* */
 
 function createCanvas({ height, width }) {
-  const canvas = document.createElement("canvas");
-  canvas.height = height;
-  canvas.width = width;
-  canvas.setAttribute("style", "border: 1px solid black");
-  return canvas;
+	const canvas = document.createElement('canvas');
+	canvas.height = height;
+	canvas.width = width;
+	canvas.setAttribute('style', 'border: 1px solid black');
+	return canvas;
 }
 
 function dispatch(action) {
-  state = reducer(state, action);
+	state = reducer(state, action);
 }
 
 function getState(): State {
-  return state;
+	return state;
 }
 
 function reducer(state: State = initialState, action: Action): State {
-  return {
-    ...state,
-    selectedLevel: selectedLevelReducer(state.selectedLevel, action),
-    player: playerReducer(state.player, action),
-    colorblind: colorblindReducer(state.colorblind, action),
-    pressedKeys: pressedKeysReducer(state.pressedKeys, action)
-  };
+	return {
+		...state,
+		selectedLevel: selectedLevelReducer(state.selectedLevel, action),
+		player: playerReducer(state.player, action),
+		colorblind: colorblindReducer(state.colorblind, action),
+		pressedKeys: pressedKeysReducer(state.pressedKeys, action),
+	};
 }
 
 function selectedLevelReducer(state, action) {
-  if (action.type === "LOAD_LEVEL") {
-    return LEVELS[action.level];
-  }
-  return state;
+	if (action.type === 'LOAD_LEVEL') {
+		return LEVELS[action.level];
+	}
+	return state;
 }
 
 function playerReducer(state: Player, action) {
-  if (action.type === "LOAD_LEVEL") {
-    return { ...state, position: LEVELS[action.level].playerPosition };
-  } else if (action.type == "KEYBOARD") {
-    if (action.key === "up" && action.direction === "down" && !state.jumping) {
-      return { ...state, jumping: { remainingBlocks: 100 } };
-    }
-  } else if (action.type === "TIMESTEP") {
-    const pressedKeys = getState().pressedKeys;
-    const dt = action.ts;
+	if (action.type === 'LOAD_LEVEL') {
+		return { ...state, position: LEVELS[action.level].playerPosition };
+	} else if (action.type == 'KEYBOARD') {
+		// TODO: must be touching ground and not be a ...double jump?
+		if (action.key === 'up' && action.direction === 'down' && !state.jumping) {
+			const resting = state.position.row === Math.floor(state.position.row);
+			const downTile = getTile(state.position.row + 2, state.position.col);
+			if (!resting || canMove(downTile)) {
+				return state;
+			}
+			return { ...state, jumping: { remainingBlocks: 5 } };
+		}
+	} else if (action.type === 'TIMESTEP') {
+		const pressedKeys = getState().pressedKeys;
+		const dt = action.ts;
 
-    let vx = 0;
-    if (pressedKeys.right && !pressedKeys.left) {
-      vx = 1;
-    } else if (pressedKeys.left && !pressedKeys.right) {
-      vx = -1;
-    }
+		let vx = 0;
+		if (pressedKeys.right && !pressedKeys.left) {
+			vx = 1;
+		} else if (pressedKeys.left && !pressedKeys.right) {
+			vx = -1;
+		}
+		let row = state.position.row;
+		let jumping = null;
+		let blockChangeY = PLAYER_SPEED * dt / 1000;
 
-    let row;
-    let jumping = { ...state.jumping };
-    let blockChangeY = 0.001 * 1000 / dt;
+		if (state.jumping && state.jumping.remainingBlocks > 0) {
+			const upTile = getTile(Math.ceil(state.position.row - 1), state.position.col);
+			const canMoveUp = canMove(upTile);
+			jumping = { ...state.jumping };
+			if (canMoveUp) {
+				row = state.position.row - blockChangeY;
+				jumping.remainingBlocks -= Math.min(blockChangeY, jumping.remainingBlocks);
+			}
 
-    if (jumping && jumping.remainingBlocks > 0) {
-      row = state.position.row + 10;
-      jumping.remainingBlocks - 10;
-    } else {
-      console.log(state.position);
-      console.log(blockChangeY);
-      let nextTile = getTile(
-        Math.ceil(state.position.row + blockChangeY),
-        state.position.col
-      );
-      console.log(nextTile);
-      if (nextTile) {
-        if (canMove(nextTile)) {
-          console.log("i can fall to to " + state.position.row + blockChangeY);
-          row = state.position.row + blockChangeY;
-        }
-      } else {
-        console.log("i cant move");
-      }
-    }
+			if (!canMoveUp || jumping.remainingBlocks === 0) {
+				jumping = null;
+			}
+		} else {
+			const downTile = getTile(Math.floor(state.position.row) + 2, state.position.col);
+			if (canMove(downTile)) {
+				row = state.position.row + blockChangeY;
+				// round up if overshot
+				if (!canMove(getTile(Math.ceil(row) + 1, state.position.col))) {
+					row = Math.floor(row);
+				}
+			}
+		}
 
-    const roundNext = vx > 0 ? Math.ceil : Math.floor; // round in the direction character is moving
-    const roundPrev = vx > 0 ? Math.floor : Math.ceil;
-    const nextTile = getTile(state.position.row, roundNext(state.position.col));
-    const dx = canMove(nextTile) ? dt / 1000 * vx * PLAYER_SPEED : 0;
+		const roundNext = vx > 0 ? Math.ceil : Math.floor; // round in the direction character is moving
+		const roundPrev = vx > 0 ? Math.floor : Math.ceil;
+		const nextTile = getTile(Math.floor(state.position.row), roundNext(state.position.col));
+		const dx = canMove(nextTile) ? dt / 1000 * vx * PLAYER_SPEED : 0;
 
-    let col = state.position.col + dx;
-    // round down or up if cannot move to neighboring tile
-    if (!canMove(getTile(state.position.row, roundNext(col)))) {
-      col = roundPrev(col);
-    }
+		let col = state.position.col + dx;
+		// round down or up if cannot move to neighboring tile
+		if (dx !== 0 && !canMove(getTile(Math.floor(state.position.row), roundNext(col)))) {
+			col = roundPrev(col);
+		}
 
-    const position = { col, row: row };
+		const position = { col, row };
 
-    return { ...state, vx, position, jumping };
-  }
-  return state;
+		return { ...state, vx, position, jumping };
+	}
+	return state;
 }
 
 function pressedKeysReducer(state, action) {
-  if (action.type !== "KEYBOARD") {
-    return state;
-  }
+	if (action.type !== 'KEYBOARD') {
+		return state;
+	}
 
-  if (action.direction === "down") {
-    return { ...state, [action.key]: true };
-  } else if (action.direction === "up") {
-    return _.omit(state, action.key);
-  }
+	if (action.direction === 'down') {
+		return { ...state, [action.key]: true };
+	} else if (action.direction === 'up') {
+		return _.omit(state, action.key);
+	}
 }
 
-const keyToColor = { "1": "red", "2": "green", "3": "blue" };
+const keyToColor = { '1': 'red', '2': 'green', '3': 'blue' };
 function colorblindReducer(state, action) {
-  if (action.type === "LOAD_LEVEL") {
-    return null;
-  }
-  if (
-    action.type === "KEYBOARD" &&
-    action.key in keyToColor &&
-    action.direction === "down"
-  ) {
-    const color = keyToColor[action.key];
-    return color === state ? null : color;
-  }
-  return state;
+	if (action.type === 'LOAD_LEVEL') {
+		return null;
+	}
+	if (action.type === 'KEYBOARD' && action.key in keyToColor && action.direction === 'down') {
+		const color = keyToColor[action.key];
+		return color === state ? null : color;
+	}
+	return state;
 }
 
 function l(...args) {
-  console.log(...args);
+	console.log(...args);
 }
 
 function drawRect(x, y, w, h, color) {
-  ctx.fillStyle = color;
-  ctx.fillRect(x, y, w, h);
+	ctx.fillStyle = color;
+	ctx.fillRect(x, y, w, h);
 }
 
 function drawTiles(tiles) {
-  for (var tile of tiles) {
-    drawRect(
-      tile.col * BLOCK_SIZE,
-      tile.row * BLOCK_SIZE,
-      BLOCK_SIZE,
-      BLOCK_SIZE,
-      tile.color
-    );
-  }
+	for (var tile of tiles) {
+		drawRect(tile.col * BLOCK_SIZE, tile.row * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE, tile.color);
+	}
 }
 
 const canvas = createCanvas({ width: SCREEN_WIDTH, height: SCREEN_HEIGHT });
-const ctx = canvas.getContext("2d");
+const ctx = canvas.getContext('2d');
 
 function init() {
-  // init keyboard bindings
-  function createKeyboardAction(key, direction): KeyboardAction {
-    return { type: "KEYBOARD", key, direction };
-  }
-  ["right", "left", "up", "down", "1", "2", "3"].forEach(key => {
-    Mousetrap.bind(
-      key,
-      () => dispatch(createKeyboardAction(key, "down")),
-      "keydown"
-    );
-    Mousetrap.bind(
-      key,
-      () => dispatch(createKeyboardAction(key, "up")),
-      "keyup"
-    );
-  });
+	// init keyboard bindings
+	function createKeyboardAction(key, direction): KeyboardAction {
+		return { type: 'KEYBOARD', key, direction };
+	}
+	['right', 'left', 'up', 'down', '1', '2', '3'].forEach(key => {
+		Mousetrap.bind(key, () => dispatch(createKeyboardAction(key, 'down')), 'keydown');
+		Mousetrap.bind(key, () => dispatch(createKeyboardAction(key, 'up')), 'keyup');
+	});
 
-  dispatch({ type: "LOAD_LEVEL", level: 1 });
-  document.body.appendChild(canvas);
-  requestAnimationFrame(gameLoop);
+	dispatch({ type: 'LOAD_LEVEL', level: 1 });
+	document.body.appendChild(canvas);
+	requestAnimationFrame(gameLoop);
 }
 
 function drawPlayer(player: Player) {
-  drawRect(
-    player.position.col * BLOCK_SIZE,
-    player.position.row * BLOCK_SIZE,
-    player.width,
-    player.height,
-    player.color
-  );
+	drawRect(
+		player.position.col * BLOCK_SIZE,
+		player.position.row * BLOCK_SIZE,
+		player.width,
+		player.height,
+		player.color
+	);
 }
 
 function canMove(tile: Tile) {
-  return (
-    tile.color === "white" ||
-    tile.color === state.colorblind ||
-    tile.color === "orange"
-  );
+	if (!tile) {
+		console.error('there was no tile!', tile);
+		return false;
+	}
+	return tile.color === 'white' || tile.color === state.colorblind || tile.color === 'orange';
 }
 
 function getTile(row, col, tiles = state.selectedLevel.tiles) {
-  return tiles[Math.floor(row * state.selectedLevel.width + col)];
+	return tiles[Math.floor(row) * state.selectedLevel.width + Math.floor(col)];
 }
 
 let lastTime = null;
 function gameLoop(timestamp) {
-  if (!lastTime) {
-    lastTime = timestamp;
-    requestAnimationFrame(gameLoop);
-    return;
-  }
-  const dt = timestamp - lastTime;
-  dispatch({ type: "TIMESTEP", ts: dt });
+	if (!lastTime) {
+		lastTime = timestamp;
+		requestAnimationFrame(gameLoop);
+		return;
+	}
+	const dt = timestamp - lastTime;
+	dispatch({ type: 'TIMESTEP', ts: dt });
 
-  // update world
-  const tiles = state.selectedLevel.tiles.map(tile => ({
-    ...tile,
-    color: tile.color === state.colorblind ? "white" : tile.color
-  }));
+	// update world
+	const tiles = state.selectedLevel.tiles.map(tile => ({
+		...tile,
+		color: tile.color === state.colorblind ? 'white' : tile.color,
+	}));
 
-  // if the player is on the goal, go to the next level
-  let playerTile = getTile(
-    getState().player.position.row,
-    getState().player.position.col
-  );
-  if (playerTile.color == "orange") {
-    dispatch({ type: "LOAD_LEVEL", level: 1 });
-  }
-  // update player
-  // draw stuff
-  ctx.clearRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+	// if the player is on the goal, go to the next level
+	let playerTile = getTile(getState().player.position.row, getState().player.position.col);
+	if (playerTile && playerTile.color == 'orange') {
+		dispatch({ type: 'LOAD_LEVEL', level: 1 });
+	}
+	// update player
+	// draw stuff
+	ctx.clearRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
 
-  drawTiles(tiles);
-  drawPlayer(state.player);
+	drawTiles(tiles);
+	drawPlayer(state.player);
 
-  requestAnimationFrame(gameLoop);
-  lastTime = timestamp;
+	requestAnimationFrame(gameLoop);
+	lastTime = timestamp;
 }
 
 function loadLevels(): Array<Level> {
-  const TILE_ID_MAP = {
-    0: "white",
-    1: "blue",
-    2: "green",
-    3: "red",
-    4: "gray",
-    6: "orange"
-  };
+	const TILE_ID_MAP = {
+		0: 'white',
+		1: 'blue',
+		2: 'green',
+		3: 'red',
+		4: 'gray',
+		6: 'orange',
+	};
 
-  const levelJsons = [
-    require("./levels/level1.json"),
-    require("./levels/level2.json")
-  ];
-  const levels: Array<Level> = levelJsons.map(levelJson => {
-    const properties = levelJson.properties;
-    const rawData = levelJson.layers[0].data;
-    const width: number = levelJson.width;
-    const height: number = levelJson.height;
-    const playerPosition = {
-      col: properties.startPositionCol,
-      row: properties.startPositionRow
-    };
-    const tileWidth: number = levelJson.tilewidth;
-    const tiles = rawData.map((tileId, index) => {
-      const col = index % width;
-      const row = Math.floor(index / width);
-      const color = TILE_ID_MAP[tileId];
-      return { col, row, color };
-    });
-    return { width, height, tiles, playerPosition, tileWidth };
-  });
-  return levels;
+	const levelJsons = [require('./levels/level1.json'), require('./levels/level2.json')];
+	const levels: Array<Level> = levelJsons.map(levelJson => {
+		const properties = levelJson.properties;
+		const rawData = levelJson.layers[0].data;
+		const width: number = levelJson.width;
+		const height: number = levelJson.height;
+		const playerPosition = {
+			col: properties.startPositionCol,
+			row: properties.startPositionRow,
+		};
+		const tileWidth: number = levelJson.tilewidth;
+		const tiles = rawData.map((tileId, index) => {
+			const col = index % width;
+			const row = Math.floor(index / width);
+			const color = TILE_ID_MAP[tileId];
+			return { col, row, color };
+		});
+		return { width, height, tiles, playerPosition, tileWidth };
+	});
+	return levels;
 }
 
 window.onload = init;
