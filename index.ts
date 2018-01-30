@@ -225,7 +225,7 @@ function init() {
 		Mousetrap.bind(key, () => dispatch(createKeyboardAction(key, 'up')), 'keyup');
 	});
 
-	dispatch({ type: 'LOAD_LEVEL', level: 1 });
+	dispatch({ type: 'LOAD_LEVEL', level: 0 });
 	document.body.appendChild(canvas);
 	requestAnimationFrame(gameLoop);
 }
